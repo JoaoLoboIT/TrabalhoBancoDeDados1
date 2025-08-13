@@ -5,7 +5,7 @@ import psycopg2
 from dotenv import load_dotenv
 
 # Carrega as variáveis de ambiente do arquivo .env para a memória do sistema
-load_dotenv()
+load_dotenv(encoding='utf-8')
 
 def get_db_connection():
     """

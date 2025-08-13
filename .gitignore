@@ -1,0 +1,9 @@
+# Arquivo .gitignore
+
+# Python
+backend/venv/
+__pycache__/
+*.pyc
+
+# Variáveis de Ambiente
+.env

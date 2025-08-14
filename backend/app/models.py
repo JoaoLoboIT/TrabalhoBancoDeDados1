@@ -3,39 +3,73 @@
 import psycopg2.extras
 from .db import get_db_connection
 
+# --- FUNÇÃO 1: Listar todos os espaços ---
 def get_all_espacos():
     """
     Busca todos os espaços cadastrados no banco de dados e os retorna.
     """
-    # Pega uma conexão da nossa função em db.py
     conn = get_db_connection()
-    
-    # Se a conexão falhar, não podemos continuar.
     if conn is None:
-        return [] # Retorna uma lista vazia em caso de erro de conexão.
+        return []
 
-    # O cursor é o objeto que realmente executa os comandos SQL.
-    # Usamos o 'DictCursor' para que os resultados venham como dicionários (mais fácil de trabalhar).
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    cursor.execute('SELECT * FROM Espacos ORDER BY nome ASC')
+    espacos = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return [dict(row) for row in espacos]
+
+# --- FUNÇÃO 2: Buscar um espaço por ID ---
+def get_espaco_by_id(espaco_id):
+    """Busca um único espaço pelo seu ID."""
+    conn = get_db_connection()
+    if conn is None:
+        return None
+
     cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     
-    # Executa a query SQL para buscar todos os espaços, ordenados por nome.
-    cursor.execute('SELECT * FROM Espacos ORDER BY nome ASC')
+    # Usar %s para passar parâmetros previne ataques de SQL Injection.
+    cursor.execute('SELECT * FROM Espacos WHERE espaco_id = %s', (espaco_id,))
     
-    # Pega todos os resultados da consulta que foi executada.
-    espacos = cursor.fetchall()
+    espaco = cursor.fetchone()
     
-    # É uma prática fundamental fechar o cursor e a conexão quando terminamos de usá-los.
-    # Isso libera os recursos no servidor do banco de dados.
     cursor.close()
     conn.close()
     
-    # Converte os resultados (que são DictRow) para dicionários puros do Python.
-    # Isso garante que os dados possam ser facilmente convertidos para JSON mais tarde.
-    return [dict(row) for row in espacos]
+    return dict(espaco) if espaco else None
 
-# No futuro, outras funções virão aqui:
-# def get_espaco_by_id(espaco_id):
-#     ...
-#
-# def create_reserva(dados_reserva):
-#     ...
+# --- FUNÇÃO 3: Criar um novo espaço ---
+def create_espaco(dados_espaco):
+    """Cria um novo espaço no banco de dados."""
+    conn = get_db_connection()
+    if conn is None:
+        return None
+
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    
+    sql = """
+        INSERT INTO Espacos (nome, tipo, capacidade, gestor_responsavel_id)
+        VALUES (%s, %s, %s, %s)
+        RETURNING espaco_id;
+    """
+    
+    try:
+        cursor.execute(sql, (
+            dados_espaco['nome'],
+            dados_espaco['tipo'],
+            dados_espaco.get('capacidade'),
+            dados_espaco['gestor_responsavel_id']
+        ))
+        
+        novo_espaco_id = cursor.fetchone()['espaco_id']
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return novo_espaco_id
+    except Exception as e:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+        print(f"Erro ao criar espaço: {e}")
+        return None

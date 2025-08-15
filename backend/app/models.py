@@ -362,3 +362,149 @@ def delete_reserva(reserva_id, solicitante_id):
     finally:
         cursor.close()
         conn.close()
+
+# --- FUNÇÃO 11: Listar todos os usuários ---
+def get_all_usuarios():
+    """Busca todos os usuários cadastrados, sem incluir a senha."""
+    conn = get_db_connection()
+    if conn is None:
+        return []
+
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+    # Selecionamos todos os campos, EXCETO a senha.
+    sql = """
+        SELECT u.usuario_id, u.nome, u.email, u.tipo, d.nome as departamento_nome
+        FROM Usuarios u
+        LEFT JOIN Departamentos d ON u.departamento_id = d.departamento_id
+        ORDER BY u.nome ASC;
+    """
+    cursor.execute(sql)
+    usuarios = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+    return [dict(row) for row in usuarios]
+
+# --- FUNÇÃO 12: Buscar um usuário por ID ---
+def get_usuario_by_id(usuario_id):
+    """Busca um único usuário pelo seu ID, sem incluir a senha."""
+    conn = get_db_connection()
+    if conn is None:
+        return None
+
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+    sql = """
+        SELECT u.usuario_id, u.nome, u.email, u.tipo, d.nome as departamento_nome
+        FROM Usuarios u
+        LEFT JOIN Departamentos d ON u.departamento_id = d.departamento_id
+        WHERE u.usuario_id = %s;
+    """
+    cursor.execute(sql, (usuario_id,))
+    usuario = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+    return dict(usuario) if usuario else None
+
+# --- FUNÇÃO 13: Criar um novo usuário ---
+def create_usuario(dados_usuario):
+    """Cria um novo usuário, salvando a senha em texto puro."""
+    conn = get_db_connection()
+    if conn is None:
+        return None
+
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+    # A senha original é pega diretamente dos dados recebidos
+    senha_pura = dados_usuario['senha']
+
+    sql = """
+        INSERT INTO Usuarios (nome, email, senha, tipo, departamento_id)
+        VALUES (%s, %s, %s, %s, %s)
+        RETURNING usuario_id;
+    """
+
+    try:
+        cursor.execute(sql, (
+            dados_usuario['nome'],
+            dados_usuario['email'],
+            senha_pura, # Salva a senha em TEXTO PURO
+            dados_usuario['tipo'],
+            dados_usuario.get('departamento_id')
+        ))
+
+        novo_usuario_id = cursor.fetchone()['usuario_id']
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return novo_usuario_id
+    except Exception as e:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+        print(f"Erro ao criar usuário: {e}")
+        return None
+    
+# --- FUNÇÃO 14: Atualizar um usuário ---
+def update_usuario(usuario_id, dados_usuario):
+    """Atualiza um usuário existente no banco de dados."""
+    conn = get_db_connection()
+    if conn is None:
+        return 0
+
+    cursor = conn.cursor()
+
+    # Nota: Esta função não atualiza a senha.
+    # A alteração de senha geralmente é um processo separado e mais seguro.
+    sql = """
+        UPDATE Usuarios
+        SET nome = %s, email = %s, tipo = %s, departamento_id = %s
+        WHERE usuario_id = %s;
+    """
+
+    try:
+        cursor.execute(sql, (
+            dados_usuario['nome'],
+            dados_usuario['email'],
+            dados_usuario['tipo'],
+            dados_usuario.get('departamento_id'),
+            usuario_id
+        ))
+        updated_rows = cursor.rowcount
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return updated_rows
+    except Exception as e:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+        print(f"Erro ao atualizar usuário: {e}")
+        return 0
+
+# --- FUNÇÃO 15: Deletar um usuário ---
+def delete_usuario(usuario_id):
+    """Deleta um usuário do banco de dados."""
+    conn = get_db_connection()
+    if conn is None:
+        return 0
+
+    cursor = conn.cursor()
+    sql = "DELETE FROM Usuarios WHERE usuario_id = %s;"
+
+    try:
+        cursor.execute(sql, (usuario_id,))
+        deleted_rows = cursor.rowcount
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return deleted_rows
+    except Exception as e:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+        print(f"Erro ao deletar usuário: {e}")
+        return 0

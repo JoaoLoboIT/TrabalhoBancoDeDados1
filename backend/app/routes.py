@@ -3,7 +3,8 @@
 from flask import Blueprint, jsonify, request
 from .models import (
     get_all_espacos, get_espaco_by_id, create_espaco, update_espaco, delete_espaco,
-    create_reserva, get_reserva_by_id, update_reserva_status, get_all_reservas, delete_reserva
+    create_reserva, get_reserva_by_id, update_reserva_status, get_all_reservas, delete_reserva,
+    get_all_usuarios, get_usuario_by_id, create_usuario, update_usuario, delete_usuario
 )
 
 api_bp = Blueprint('api_bp', __name__, url_prefix='/api')
@@ -152,3 +153,66 @@ def deletar_reserva_route(reserva_id):
         return jsonify(resultado), status_code
 
     return jsonify({"mensagem": "Reserva cancelada com sucesso"})
+
+# --- ROTA 10: Listar todos os usuários (GET) ---
+@api_bp.route('/usuarios', methods=['GET'])
+def listar_usuarios_route():
+    """Endpoint para listar todos os usuários."""
+    usuarios = get_all_usuarios()
+    return jsonify(usuarios)
+
+# --- ROTA 11: Buscar um usuário por ID (GET) ---
+@api_bp.route('/usuarios/<int:usuario_id>', methods=['GET'])
+def buscar_usuario_route(usuario_id):
+    """Endpoint para buscar um usuário específico pelo seu ID."""
+    usuario = get_usuario_by_id(usuario_id)
+    if usuario is None:
+        return jsonify({"erro": "Usuário não encontrado"}), 404
+    return jsonify(usuario)
+
+# --- ROTA 12: Criar um novo usuário (POST) ---
+@api_bp.route('/usuarios', methods=['POST'])
+def criar_usuario_route():
+    """Endpoint para criar um novo usuário."""
+    dados = request.get_json()
+
+    required_fields = ['nome', 'email', 'senha', 'tipo']
+    if not all(field in dados for field in required_fields):
+        return jsonify({"erro": "Dados incompletos"}), 400
+
+    novo_usuario_id = create_usuario(dados)
+
+    if novo_usuario_id is None:
+        return jsonify({"erro": "Falha ao criar o usuário (verifique se o e-mail já existe)"}), 500
+
+    # Busca os dados do usuário recém-criado para retornar (sem a senha)
+    novo_usuario = get_usuario_by_id(novo_usuario_id)
+
+    return jsonify(novo_usuario), 201
+
+# --- ROTA 13: Atualizar um usuário (PUT) ---
+@api_bp.route('/usuarios/<int:usuario_id>', methods=['PUT'])
+def atualizar_usuario_route(usuario_id):
+    """Endpoint para atualizar um usuário existente."""
+    dados = request.get_json()
+    if not dados:
+        return jsonify({"erro": "Dados ausentes"}), 400
+
+    updated_rows = update_usuario(usuario_id, dados)
+
+    if updated_rows == 0:
+        return jsonify({"erro": "Usuário não encontrado"}), 404
+
+    usuario_atualizado = get_usuario_by_id(usuario_id)
+    return jsonify(usuario_atualizado)
+
+# --- ROTA 14: Deletar um usuário (DELETE) ---
+@api_bp.route('/usuarios/<int:usuario_id>', methods=['DELETE'])
+def deletar_usuario_route(usuario_id):
+    """Endpoint para deletar um usuário."""
+    deleted_rows = delete_usuario(usuario_id)
+
+    if deleted_rows == 0:
+        return jsonify({"erro": "Usuário não encontrado"}), 404
+
+    return jsonify({"mensagem": "Usuário deletado com sucesso"})

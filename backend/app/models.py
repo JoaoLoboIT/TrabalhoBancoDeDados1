@@ -2,6 +2,7 @@
 
 import psycopg2.extras
 from .db import get_db_connection
+from datetime import datetime, timedelta
 
 # --- FUNÇÃO 1: Listar todos os espaços ---
 def get_all_espacos():
@@ -139,3 +140,225 @@ def delete_espaco(espaco_id):
         conn.close()
         print(f"Erro ao deletar espaço: {e}")
         return 0
+
+# --- FUNÇÃO 6: Buscar uma reserva por ID ---
+def get_reserva_by_id(reserva_id):
+    """Busca uma única reserva pelo seu ID."""
+    conn = get_db_connection()
+    if conn is None:
+        return None
+
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+    # Vamos fazer um JOIN para trazer informações úteis do espaço e do solicitante
+    sql = """
+        SELECT r.*, e.nome as espaco_nome, u.nome as solicitante_nome
+        FROM Reservas r
+        JOIN Espacos e ON r.espaco_id = e.espaco_id
+        JOIN Usuarios u ON r.solicitante_id = u.usuario_id
+        WHERE r.reserva_id = %s;
+    """
+    cursor.execute(sql, (reserva_id,))
+    reserva = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+    return dict(reserva) if reserva else None
+
+# --- FUNÇÃO 7: Criar uma nova reserva com validações ---
+def create_reserva(dados_reserva):
+    """Cria uma nova reserva no banco de dados após validar as regras de negócio."""
+    conn = get_db_connection()
+    if conn is None:
+        return {"erro": "Falha na conexão com o banco de dados"}
+
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+    try:
+        # --- VALIDAÇÃO 1: O espaço e o usuário existem? ---
+        espaco = get_espaco_by_id(dados_reserva['espaco_id'])
+        if not espaco:
+            return {"erro": "Espaço não encontrado."}
+
+        # Precisamos dos dados do usuário para as próximas validações
+        cursor.execute("SELECT * FROM Usuarios WHERE usuario_id = %s", (dados_reserva['solicitante_id'],))
+        solicitante = cursor.fetchone()
+        if not solicitante:
+            return {"erro": "Solicitante não encontrado."}
+
+        # --- VALIDAÇÃO 2: Capacidade do espaço ---
+        if espaco['capacidade'] and dados_reserva['num_participantes'] > espaco['capacidade']:
+            return {"erro": f"Número de participantes ({dados_reserva['num_participantes']}) excede a capacidade do espaço ({espaco['capacidade']})."}
+
+        # --- VALIDAÇÃO 3: Laboratórios apenas para professores ---
+        if espaco['tipo'] == 'laboratorio' and solicitante['tipo'] != 'professor':
+            return {"erro": "Apenas professores podem reservar laboratórios."}
+
+        # --- VALIDAÇÃO 4: Conflito de horários ---
+        cursor.execute("""
+            SELECT reserva_id FROM Reservas
+            WHERE espaco_id = %s AND status IN ('confirmada', 'pendente') AND
+            (data_hora_inicio < %s AND data_hora_fim > %s)
+        """, (dados_reserva['espaco_id'], dados_reserva['data_hora_fim'], dados_reserva['data_hora_inicio']))
+
+        if cursor.fetchone():
+            return {"erro": "O espaço já está reservado neste horário."}
+
+        # --- LÓGICA DE APROVAÇÃO AUTOMÁTICA ---
+        status_inicial = 'pendente'
+        if espaco['tipo'] == 'sala_de_aula': # Assumindo que salas de estudo são um tipo de sala_de_aula
+            status_inicial = 'confirmada'
+
+        # --- INSERÇÃO NO BANCO ---
+        sql = """
+            INSERT INTO Reservas (espaco_id, solicitante_id, data_hora_inicio, data_hora_fim, finalidade, num_participantes, status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING reserva_id;
+        """
+        cursor.execute(sql, (
+            dados_reserva['espaco_id'],
+            dados_reserva['solicitante_id'],
+            dados_reserva['data_hora_inicio'],
+            dados_reserva['data_hora_fim'],
+            dados_reserva.get('finalidade'),
+            dados_reserva['num_participantes'],
+            status_inicial
+        ))
+
+        novo_reserva_id = cursor.fetchone()['reserva_id']
+        conn.commit()
+
+        # Retorna o ID em caso de sucesso
+        return {"id": novo_reserva_id}
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Erro ao criar reserva: {e}")
+        return {"erro": "Ocorreu um erro interno ao processar a reserva."}
+    finally:
+        cursor.close()
+        conn.close()
+        
+# --- FUNÇÃO 8: Atualizar o status de uma reserva ---
+def update_reserva_status(reserva_id, novo_status, aprovador_id):
+    """
+    Atualiza o status de uma reserva (ex: de 'pendente' para 'confirmada').
+    Registra o ID do gestor que realizou a ação.
+    """
+    conn = get_db_connection()
+    if conn is None:
+        return 0
+
+    cursor = conn.cursor()
+
+    # Validação para garantir que o novo status é um dos valores permitidos.
+    # Isso previne que a API tente inserir um status inválido no banco.
+    status_permitidos = ['confirmada', 'cancelada', 'recusada']
+    if novo_status not in status_permitidos:
+        return 0 # Retorna 0 se o status for inválido
+
+    sql = """
+        UPDATE Reservas
+        SET status = %s, aprovador_id = %s
+        WHERE reserva_id = %s;
+    """
+
+    try:
+        cursor.execute(sql, (novo_status, aprovador_id, reserva_id))
+        updated_rows = cursor.rowcount
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return updated_rows
+    except Exception as e:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+        print(f"Erro ao atualizar status da reserva: {e}")
+        return 0
+    
+# --- FUNÇÃO 9: Listar todas as reservas com filtros ---
+def get_all_reservas(filtros):
+    """Busca todas as reservas, aplicando filtros dinâmicos."""
+    conn = get_db_connection()
+    if conn is None:
+        return []
+
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+    # Base da query
+    sql = """
+        SELECT r.*, e.nome as espaco_nome, u.nome as solicitante_nome
+        FROM Reservas r
+        JOIN Espacos e ON r.espaco_id = e.espaco_id
+        JOIN Usuarios u ON r.solicitante_id = u.usuario_id
+    """
+
+    # Montagem dinâmica da cláusula WHERE e dos parâmetros
+    where_clauses = []
+    params = []
+
+    if filtros.get('espaco_id'):
+        where_clauses.append("r.espaco_id = %s")
+        params.append(filtros['espaco_id'])
+
+    if filtros.get('solicitante_id'):
+        where_clauses.append("r.solicitante_id = %s")
+        params.append(filtros['solicitante_id'])
+
+    if filtros.get('status'):
+        where_clauses.append("r.status = %s")
+        params.append(filtros['status'])
+
+    if where_clauses:
+        sql += " WHERE " + " AND ".join(where_clauses)
+
+    sql += " ORDER BY r.data_hora_inicio DESC;"
+
+    cursor.execute(sql, tuple(params))
+    reservas = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+    return [dict(row) for row in reservas]
+
+# --- FUNÇÃO 10: Deletar/Cancelar uma reserva ---
+def delete_reserva(reserva_id, solicitante_id):
+    """Deleta uma reserva, validando a regra de antecedência de 12h."""
+    conn = get_db_connection()
+    if conn is None:
+        return {"erro": "Falha na conexão com o banco de dados"}
+
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+    try:
+        # Primeiro, busca a reserva para validar as regras
+        cursor.execute("SELECT * FROM Reservas WHERE reserva_id = %s", (reserva_id,))
+        reserva = cursor.fetchone()
+
+        if not reserva:
+            return {"erro": "Reserva não encontrada."}
+
+        # Validação: Apenas o próprio solicitante pode cancelar
+        if reserva['solicitante_id'] != solicitante_id:
+            return {"erro": "Ação não permitida. Você não é o solicitante desta reserva."}
+
+        # Validação: Regra de negócio das 12 horas de antecedência
+        if datetime.now() > (reserva['data_hora_inicio'] - timedelta(hours=12)):
+            return {"erro": "Cancelamento não permitido. O prazo de 12 horas de antecedência foi excedido."}
+
+        # Se todas as validações passaram, deleta a reserva
+        cursor.execute("DELETE FROM Reservas WHERE reserva_id = %s", (reserva_id,))
+        deleted_rows = cursor.rowcount
+        conn.commit()
+
+        return {"sucesso": deleted_rows}
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Erro ao deletar reserva: {e}")
+        return {"erro": "Ocorreu um erro interno ao processar o cancelamento."}
+    finally:
+        cursor.close()
+        conn.close()

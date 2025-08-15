@@ -12,6 +12,8 @@ def create_app():
     # Cria a instância principal da aplicação
     app = Flask(__name__)
 
+    app.config['JSON_AS_ASCII'] = False
+    
     # Configura o CORS para permitir que o frontend (em outro domínio) acesse a API
     CORS(app)
 

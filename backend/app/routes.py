@@ -1,7 +1,10 @@
 # backend/app/routes.py
 
 from flask import Blueprint, jsonify, request
-from .models import get_all_espacos, get_espaco_by_id, create_espaco, update_espaco, delete_espaco
+from .models import (
+    get_all_espacos, get_espaco_by_id, create_espaco, update_espaco, delete_espaco,
+    create_reserva, get_reserva_by_id, update_reserva_status, get_all_reservas, delete_reserva
+)
 
 api_bp = Blueprint('api_bp', __name__, url_prefix='/api')
 
@@ -69,3 +72,83 @@ def deletar_espaco_route(espaco_id):
 
     # Retorna uma mensagem de sucesso e o status 200 OK.
     return jsonify({"mensagem": "Espaço deletado com sucesso"})
+
+# --- ROTA 6: Criar uma nova reserva (POST) ---
+@api_bp.route('/reservas', methods=['POST'])
+def criar_reserva_route():
+    """Endpoint para solicitar uma nova reserva."""
+    dados = request.get_json()
+
+    # Validação básica dos campos obrigatórios
+    required_fields = ['espaco_id', 'solicitante_id', 'data_hora_inicio', 'data_hora_fim', 'num_participantes']
+    if not all(field in dados for field in required_fields):
+        return jsonify({"erro": "Dados incompletos para criar a reserva"}), 400
+
+    resultado = create_reserva(dados)
+
+    if "erro" in resultado:
+        # Retorna 409 Conflict para erros de regra de negócio, e 400 para outros
+        status_code = 409 if "conflito" in resultado["erro"].lower() else 400
+        return jsonify(resultado), status_code
+
+    # Se a criação foi bem-sucedida, busca a reserva completa para retornar
+    nova_reserva = get_reserva_by_id(resultado['id'])
+    return jsonify(nova_reserva), 201
+
+# --- ROTA 7: Atualizar o status de uma reserva (PUT) ---
+@api_bp.route('/reservas/<int:reserva_id>/status', methods=['PUT'])
+def atualizar_status_reserva_route(reserva_id):
+    """
+    Endpoint para um gestor aprovar ou recusar uma reserva.
+    Espera um JSON com o novo 'status' e o 'aprovador_id'.
+    """
+    dados = request.get_json()
+
+    if not dados or 'status' not in dados or 'aprovador_id' not in dados:
+        return jsonify({"erro": "Dados incompletos: 'status' e 'aprovador_id' são obrigatórios"}), 400
+
+    novo_status = dados['status']
+    aprovador_id = dados['aprovador_id']
+
+    updated_rows = update_reserva_status(reserva_id, novo_status, aprovador_id)
+
+    if updated_rows == 0:
+        return jsonify({"erro": "Reserva não encontrada ou status inválido"}), 404
+
+    # Busca a reserva atualizada para retornar na resposta
+    reserva_atualizada = get_reserva_by_id(reserva_id)
+    return jsonify(reserva_atualizada)
+
+# --- ROTA 8: Listar todas as reservas com filtros (GET) ---
+@api_bp.route('/reservas', methods=['GET'])
+def listar_reservas_route():
+    """
+    Endpoint para listar reservas, aceitando filtros como query parameters.
+    Ex: /api/reservas?solicitante_id=5&status=confirmada
+    """
+    # request.args pega os parâmetros da URL (ex: ?chave=valor)
+    filtros = request.args.to_dict()
+    reservas = get_all_reservas(filtros)
+    return jsonify(reservas)
+
+# --- ROTA 9: Deletar/Cancelar uma reserva (DELETE) ---
+@api_bp.route('/reservas/<int:reserva_id>', methods=['DELETE'])
+def deletar_reserva_route(reserva_id):
+    """
+    Endpoint para um solicitante cancelar sua própria reserva.
+    A identidade do solicitante viria de um sistema de login,
+    mas por enquanto vamos simular enviando no corpo da requisição.
+    """
+    dados = request.get_json()
+    if not dados or 'solicitante_id' not in dados:
+        return jsonify({"erro": "O 'solicitante_id' é obrigatório para cancelar"}), 400
+
+    solicitante_id = dados['solicitante_id']
+    resultado = delete_reserva(reserva_id, solicitante_id)
+
+    if "erro" in resultado:
+        # Retorna 403 Forbidden para erros de permissão
+        status_code = 403 if "permitida" in resultado["erro"] or "excedido" in resultado["erro"] else 404
+        return jsonify(resultado), status_code
+
+    return jsonify({"mensagem": "Reserva cancelada com sucesso"})

@@ -115,6 +115,6 @@ Abaixo estão os endpoints atualmente disponíveis na API.
 
 | Nome                  | GitHub                                    |
 | :-------------------- | :---------------------------------------- |
-| João Paulo            | https://github.com/JoaoLoboIT                  |
-| *Nome do Colega 1* | *(Link para o GitHub do Colega 1)* |
+| João Pedro           | https://github.com/JoaoLoboIT                  |
+| *Rian Vaz* | *(https://github.com/RianVaz)* |
 | *Nome do Colega 2* | *(Link para o GitHub do Colega 2)* |

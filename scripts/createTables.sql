@@ -54,7 +54,7 @@ INSERT INTO Espacos (nome, tipo, capacidade, gestor_responsavel_id) VALUES
 ('Sala de Estudos 02', 'sala_de_aula', NULL, 2),
 ('Sala de Aula 205', 'sala_de_aula', 40, 2);
 
-select * from espacos
+select * from espacos   
 
 ----------------------------------------------------
 

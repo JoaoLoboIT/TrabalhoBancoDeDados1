@@ -6,14 +6,30 @@
 
 Este é o projeto desenvolvido para a disciplina de **Banco de Dados I** da Universidade Federal de Ouro Preto (UFOP). O objetivo é criar um sistema web completo para o gerenciamento e reserva de espaços físicos, como salas de aula, laboratórios e auditórios, aplicando os conceitos de modelagem de dados, scripts SQL e desenvolvimento de uma aplicação funcional com back-end, front-end e banco de dados.
 
-## ✨ Funcionalidades (Planejadas)
+## ✨ Funcionalidades
 
-- [ ] Cadastro de Espaços, Usuários e Departamentos.
-- [ ] Sistema de Reserva de Espaços com status (pendente, confirmada, cancelada).
-- [ ] Autenticação de Usuários (login/logout).
-- [ ] Painel de controle para gestores aprovarem/recusarem reservas.
-- [ ] Filtros para visualização de reservas por data, espaço ou status.
-- [ ] Interface gráfica para interação com o sistema.
+Abaixo está o checklist de funcionalidades planejadas para o sistema, com base no documento de requisitos.
+
+### Gerenciamento de Espaços
+- [X] **Listar todos os espaços:** Permite que qualquer usuário veja os espaços disponíveis no sistema.
+- [X] **Buscar um espaço por ID:** Retorna os detalhes de um espaço específico.
+- [X] **Cadastrar um novo espaço:** (Apenas para Gestores) Permite adicionar novos espaços ao banco de dados.
+- [ ] **Atualizar um espaço existente:** (Apenas para Gestores) Permite editar informações como nome e capacidade.
+- [ ] **Remover um espaço:** (Apenas para Gestores) Permite remover um espaço do sistema.
+
+### Gerenciamento de Reservas
+- [ ] **Solicitar uma nova reserva:** Endpoint principal onde um solicitante (aluno ou professor) cria um pedido de reserva.
+- [ ] **Lógica de Aprovação Automática:** Reservas de "salas de estudo" devem ser confirmadas automaticamente.
+- [ ] **Lógica de Conflito de Horários:** O sistema não deve permitir a criação de uma reserva em um horário já ocupado.
+- [ ] **Visualizar reservas com filtros:** Permitir que usuários vejam reservas por data, por espaço ou apenas as suas próprias.
+- [ ] **Aprovar ou Recusar uma reserva:** (Apenas para Gestores) Endpoint para alterar o status de uma reserva pendente.
+- [ ] **Cancelar uma reserva:** (Apenas para Solicitantes) Permite que o dono da reserva a cancele, respeitando a regra de antecedência.
+
+### Gerenciamento de Usuários e Permissões
+- [ ] **Autenticação de Usuários:** Sistema de login para identificar o usuário e seu tipo (aluno, professor, gestor).
+- [ ] **Listar usuários:** (Apenas para Gestores) Visualizar todos os usuários cadastrados.
+- [ ] **Cadastrar, editar e remover usuários:** (Apenas para Gestores) Gerenciamento completo de contas de usuário.
+- [ ] **Lógica de Permissão por Tipo:** Garantir que apenas professores possam reservar laboratórios e que alunos tenham um limite de reservas ativas.
 
 ## 💻 Tecnologias Utilizadas
 

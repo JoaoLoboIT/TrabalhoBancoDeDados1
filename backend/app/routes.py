@@ -1,7 +1,7 @@
 # backend/app/routes.py
 
 from flask import Blueprint, jsonify, request
-from .models import get_all_espacos, get_espaco_by_id, create_espaco
+from .models import get_all_espacos, get_espaco_by_id, create_espaco, update_espaco, delete_espaco
 
 api_bp = Blueprint('api_bp', __name__, url_prefix='/api')
 
@@ -40,3 +40,32 @@ def criar_espaco_route():
     
     # Retorna o objeto criado e o status HTTP 201 Created.
     return jsonify(novo_espaco), 201
+
+# --- ROTA 4: Atualizar um espaço existente (PUT) ---
+@api_bp.route('/espacos/<int:espaco_id>', methods=['PUT'])
+def atualizar_espaco_route(espaco_id):
+    """Endpoint para atualizar um espaço existente."""
+    dados = request.get_json()
+    if not dados:
+        return jsonify({"erro": "Dados ausentes"}), 400
+
+    updated_rows = update_espaco(espaco_id, dados)
+
+    if updated_rows == 0:
+        return jsonify({"erro": "Espaço não encontrado"}), 404
+
+    # Busca o espaço atualizado para retornar na resposta
+    espaco_atualizado = get_espaco_by_id(espaco_id)
+    return jsonify(espaco_atualizado)
+
+# --- ROTA 5: Deletar um espaço (DELETE) ---
+@api_bp.route('/espacos/<int:espaco_id>', methods=['DELETE'])
+def deletar_espaco_route(espaco_id):
+    """Endpoint para deletar um espaço."""
+    deleted_rows = delete_espaco(espaco_id)
+
+    if deleted_rows == 0:
+        return jsonify({"erro": "Espaço não encontrado"}), 404
+
+    # Retorna uma mensagem de sucesso e o status 200 OK.
+    return jsonify({"mensagem": "Espaço deletado com sucesso"})

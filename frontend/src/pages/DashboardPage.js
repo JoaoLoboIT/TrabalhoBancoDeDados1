@@ -1,30 +1,55 @@
 import React, { useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
-import { Typography, Container, Button } from '@mui/material';
+import { Typography, Grid, Card, CardActionArea, CardContent } from '@mui/material';
+import { Link as RouterLink } from 'react-router-dom';
 
 function DashboardPage() {
-  // Usamos o contexto para pegar os dados do usuário e a função de logout
-  const { user, logout } = useContext(AuthContext);
+  const { user } = useContext(AuthContext);
 
-  // Se por algum motivo o user ainda não carregou, mostramos uma mensagem
   if (!user) {
-    return <div>Carregando informações do usuário...</div>;
+    return <div>Carregando...</div>;
+  }
+
+  // Opções de menu visíveis para todos os usuários logados
+  const menuOptions = [
+    { title: 'Espaços', link: '/espacos', description: 'Consulte e gerencie os espaços' },
+    { title: 'Reservas', link: '/reservas', description: 'Visualize e crie suas reservas' },
+    { title: 'Departamentos', link: '/departamentos', description: 'Veja os departamentos da instituição' }
+  ];
+
+  // Opção de menu visível apenas para gestores
+  if (user.tipo === 'gestor') {
+    menuOptions.push({
+      title: 'Gerenciar Usuários',
+      link: '/usuarios',
+      description: 'Adicione, edite e remova usuários'
+    });
   }
 
   return (
-    <Container>
-      <Typography variant="h4" component="h1" sx={{ mt: 4 }}>
-        Bem-vindo(a), {user.nome}!
+    <>
+      <Typography variant="h4" component="h1" gutterBottom>
+        Painel Principal
       </Typography>
-      <Typography variant="subtitle1" color="textSecondary" gutterBottom>
-        Seu perfil: {user.tipo}
-      </Typography>
-      <Button variant="contained" color="secondary" onClick={logout} sx={{ mt: 2 }}>
-        Sair (Logout)
-      </Button>
-
-      {/* Aqui virão os botões de navegação para Espaços, Reservas, etc. */}
-    </Container>
+      <Grid container spacing={3} sx={{ mt: 2 }}>
+        {menuOptions.map((option) => (
+          <Grid item xs={12} sm={6} md={4} key={option.title}>
+            <Card>
+              <CardActionArea component={RouterLink} to={option.link}>
+                <CardContent>
+                  <Typography variant="h5" component="div">
+                    {option.title}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {option.description}
+                  </Typography>
+                </CardContent>
+              </CardActionArea>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+    </>
   );
 }
 

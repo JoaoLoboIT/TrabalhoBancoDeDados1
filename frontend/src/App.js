@@ -4,29 +4,24 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import EspacosPage from './pages/EspacosPage';
-// ... importe outras páginas se necessário
+// ... importe outras páginas aqui
 
-// Importamos nosso componente de segurança
 import ProtectedRoute from './components/ProtectedRoute';
+import MainLayout from './components/MainLayout'; 
 
 function App() {
   return (
     <Router>
       <Routes>
-        {/* A rota de login é pública */}
+        {/* A rota de login continua pública e fora do layout principal */}
         <Route path="/login" element={<LoginPage />} />
 
-        {/* As rotas abaixo agora estão protegidas */}
-        <Route 
-          path="/" 
-          element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} 
-        />
-        <Route 
-          path="/espacos" 
-          element={<ProtectedRoute><EspacosPage /></ProtectedRoute>} 
-        />
-        {/* Adicione outras rotas protegidas aqui da mesma forma */}
-
+        {/* Todas as rotas protegidas agora passam pelo MainLayout */}
+        <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
+          <Route path="/" element={<DashboardPage />} />
+          <Route path="/espacos" element={<EspacosPage />} />
+          {/* Adicione outras rotas protegidas aqui, dentro deste grupo */}
+        </Route>
       </Routes>
     </Router>
   );

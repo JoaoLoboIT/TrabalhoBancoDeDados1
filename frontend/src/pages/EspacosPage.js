@@ -1,41 +1,107 @@
-import React, { useState, useEffect } from 'react'; // 1. Importamos os hooks
-import { Typography, Container, Card, CardContent, CircularProgress, Alert } from '@mui/material'; // Importamos mais componentes
+import React, { useState, useEffect, useContext } from 'react';
+import { AuthContext } from '../context/AuthContext';
+import {
+  Typography, Container, Card, CardContent, CircularProgress, Alert, Button,
+  Dialog, DialogActions, DialogContent, DialogTitle, TextField, CardActions,
+  FormControl, InputLabel, Select, MenuItem // Importações adicionadas
+} from '@mui/material';
 
 function EspacosPage() {
-  // 2. Criamos um "estado" para guardar a lista de espaços
+  const { user, token } = useContext(AuthContext);
+  const isGestor = user?.tipo === 'gestor';
+
   const [espacos, setEspacos] = useState([]);
-  // Estados para controlar o carregamento e os erros
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // 3. useEffect para buscar os dados da API quando o componente carregar
-  useEffect(() => {
-    // A função fetch faz a chamada para a nossa API back-end
+  const [open, setOpen] = useState(false);
+  // Estado do formulário simplificado
+  const [novoEspaco, setNovoEspaco] = useState({
+    nome: '',
+    tipo: '',
+    capacidade: ''
+  });
+
+  const fetchEspacos = () => {
+    setLoading(true);
     fetch('http://localhost:5000/api/espacos')
       .then(response => {
-        if (!response.ok) {
-          throw new Error('Falha ao buscar os dados da API');
-        }
+        if (!response.ok) throw new Error('Falha ao buscar os dados da API');
         return response.json();
       })
       .then(data => {
-        setEspacos(data); // 4. Guardamos os dados recebidos no nosso estado
-        setLoading(false); // Paramos de mostrar o "carregando"
+        setEspacos(data);
+        setLoading(false);
       })
       .catch(error => {
-        setError(error.message); // Guardamos a mensagem de erro
-        setLoading(false); // Paramos de mostrar o "carregando"
+        setError(error.message);
+        setLoading(false);
       });
-  }, []); // O [] vazio significa "execute esta função apenas uma vez, quando o componente montar"
+  };
 
-  // Lógica para renderizar o conteúdo
+  useEffect(() => {
+    fetchEspacos();
+  }, []);
+
+  const handleClickOpen = () => {
+    // Reseta o formulário ao abrir
+    setNovoEspaco({ nome: '', tipo: '', capacidade: '' });
+    setOpen(true);
+  };
+  const handleClose = () => setOpen(false);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setNovoEspaco({ ...novoEspaco, [name]: value });
+  };
+
+  const handleSubmit = () => {
+    fetch('http://localhost:5000/api/espacos', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-access-token': token
+      },
+      body: JSON.stringify({
+        ...novoEspaco,
+        capacidade: parseInt(novoEspaco.capacidade, 10) || null,
+        gestor_responsavel_id: user.usuario_id // Pega o ID do gestor logado
+      })
+    })
+    .then(response => {
+      if (!response.ok) throw new Error('Falha ao criar o espaço.');
+      return response.json();
+    })
+    .then(() => {
+      handleClose();
+      fetchEspacos();
+    })
+    .catch(err => setError(err.message));
+  };
+
+  const handleDelete = (espacoId) => {
+    if (window.confirm('Tem certeza que deseja deletar este espaço?')) {
+      fetch(`http://localhost:5000/api/espacos/${espacoId}`, {
+        method: 'DELETE',
+        headers: { 'x-access-token': token }
+      })
+      .then(response => {
+        if (!response.ok) throw new Error('Falha ao deletar o espaço.');
+        return response.json();
+      })
+      .then(() => {
+        fetchEspacos();
+      })
+      .catch(err => setError(err.message));
+    }
+  };
+
   let content;
   if (loading) {
-    content = <CircularProgress />; // Mostra um ícone de "carregando"
+    content = <CircularProgress />;
   } else if (error) {
-    content = <Alert severity="error">{error}</Alert>; // Mostra uma caixa de erro
+    content = <Alert severity="error">{error}</Alert>;
   } else {
-    // 5. Usamos .map() para criar um Card para cada espaço na lista
     content = espacos.map(espaco => (
       <Card key={espaco.espaco_id} variant="outlined" style={{ marginBottom: '10px' }}>
         <CardContent>
@@ -43,18 +109,49 @@ function EspacosPage() {
           <Typography color="textSecondary">Tipo: {espaco.tipo}</Typography>
           <Typography color="textSecondary">Capacidade: {espaco.capacidade || 'Não informada'}</Typography>
         </CardContent>
+        {isGestor && (
+          <CardActions>
+            <Button size="small" color="primary">Editar</Button>
+            <Button size="small" color="secondary" onClick={() => handleDelete(espaco.espaco_id)}>Deletar</Button>
+          </CardActions>
+        )}
       </Card>
     ));
   }
 
   return (
     <Container>
-      <Typography variant="h4" component="h1" gutterBottom style={{ marginTop: '20px' }}>
+      <Typography variant="h4" component="h1" gutterBottom>
         Gerenciamento de Espaços
       </Typography>
+      
+      {isGestor && (
+        <Button variant="contained" color="primary" onClick={handleClickOpen} style={{ marginBottom: '20px' }}>
+          Adicionar Novo Espaço
+        </Button>
+      )}
 
       {content}
 
+      <Dialog open={open} onClose={handleClose}>
+        <DialogTitle>Adicionar Novo Espaço</DialogTitle>
+        <DialogContent>
+          <TextField autoFocus margin="dense" name="nome" label="Nome do Espaço" type="text" fullWidth variant="standard" value={novoEspaco.nome} onChange={handleInputChange} />
+          <FormControl variant="standard" fullWidth margin="dense">
+            <InputLabel id="tipo-select-label">Tipo</InputLabel>
+            <Select labelId="tipo-select-label" name="tipo" value={novoEspaco.tipo} onChange={handleInputChange} label="Tipo">
+              <MenuItem value={"sala_de_aula"}>Sala de Aula</MenuItem>
+              <MenuItem value={"laboratorio"}>Laboratório</MenuItem>
+              <MenuItem value={"auditorio"}>Auditório</MenuItem>
+            </Select>
+          </FormControl>
+          <TextField margin="dense" name="capacidade" label="Capacidade" type="number" fullWidth variant="standard" value={novoEspaco.capacidade} onChange={handleInputChange} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleClose}>Cancelar</Button>
+          <Button onClick={handleSubmit}>Salvar</Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }

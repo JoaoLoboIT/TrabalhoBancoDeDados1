@@ -262,3 +262,21 @@ def login_route():
     except Exception as e:
         print(f"Erro ao gerar token: {e}")
         return jsonify({"erro": "Falha ao processar o login"}), 500
+
+# --- ROTA Adicional: Buscar dados do usuário logado ---
+@api_bp.route('/me', methods=['GET'])
+@token_required
+def get_current_user_data(current_user):
+    """
+    Endpoint que retorna os dados completos do usuário
+    identificado pelo token.
+    """
+    # O ID do usuário vem do token, que já foi decodificado pelo decorator
+    usuario_id = int(current_user['sub'])
+
+    usuario = get_usuario_by_id(usuario_id)
+
+    if usuario is None:
+        return jsonify({"erro": "Usuário do token não encontrado"}), 404
+
+    return jsonify(usuario)

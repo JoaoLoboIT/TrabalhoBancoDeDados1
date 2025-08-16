@@ -180,7 +180,6 @@ def create_reserva(dados_reserva):
         if not espaco:
             return {"erro": "Espaço não encontrado."}
 
-        # Precisamos dos dados do usuário para as próximas validações
         cursor.execute("SELECT * FROM Usuarios WHERE usuario_id = %s", (dados_reserva['solicitante_id'],))
         solicitante = cursor.fetchone()
         if not solicitante:
@@ -194,7 +193,17 @@ def create_reserva(dados_reserva):
         if espaco['tipo'] == 'laboratorio' and solicitante['tipo'] != 'professor':
             return {"erro": "Apenas professores podem reservar laboratórios."}
 
-        # --- VALIDAÇÃO 4: Conflito de horários ---
+        # --- MUDANÇA AQUI: VALIDAÇÃO 4: Limite de reservas ativas para alunos ---
+        if solicitante['tipo'] == 'aluno':
+            cursor.execute("""
+                SELECT COUNT(*) as total_ativas FROM Reservas
+                WHERE solicitante_id = %s AND status IN ('confirmada', 'pendente')
+            """, (solicitante['usuario_id'],))
+
+            if cursor.fetchone()['total_ativas'] >= 2:
+                return {"erro": "Limite de 2 reservas ativas atingido para alunos."}
+
+        # --- VALIDAÇÃO 5: Conflito de horários ---
         cursor.execute("""
             SELECT reserva_id FROM Reservas
             WHERE espaco_id = %s AND status IN ('confirmada', 'pendente') AND
@@ -206,7 +215,7 @@ def create_reserva(dados_reserva):
 
         # --- LÓGICA DE APROVAÇÃO AUTOMÁTICA ---
         status_inicial = 'pendente'
-        if espaco['tipo'] == 'sala_de_aula': # Assumindo que salas de estudo são um tipo de sala_de_aula
+        if espaco['tipo'] == 'sala_de_aula':
             status_inicial = 'confirmada'
 
         # --- INSERÇÃO NO BANCO ---
@@ -228,7 +237,6 @@ def create_reserva(dados_reserva):
         novo_reserva_id = cursor.fetchone()['reserva_id']
         conn.commit()
 
-        # Retorna o ID em caso de sucesso
         return {"id": novo_reserva_id}
 
     except Exception as e:
@@ -508,3 +516,29 @@ def delete_usuario(usuario_id):
         conn.close()
         print(f"Erro ao deletar usuário: {e}")
         return 0
+    
+# --- FUNÇÃO 16: Autenticar um usuário ---
+def authenticate_usuario(email, senha):
+    """
+    Verifica se um usuário com o e-mail e senha fornecidos existe.
+    Retorna os dados do usuário se as credenciais estiverem corretas, senão retorna None.
+    """
+    conn = get_db_connection()
+    if conn is None:
+        return None
+
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+    # Busca o usuário pelo e-mail
+    cursor.execute("SELECT * FROM Usuarios WHERE email = %s", (email,))
+    usuario = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+
+    # Se o usuário foi encontrado e a senha (em texto puro) corresponde
+    if usuario and usuario['senha'] == senha:
+        return dict(usuario)
+
+    # Se o usuário não existe ou a senha está errada
+    return None

@@ -458,40 +458,47 @@ def create_usuario(dados_usuario):
     
 # --- FUNÇÃO 14: Atualizar um usuário ---
 def update_usuario(usuario_id, dados_usuario):
-    """Atualiza um usuário existente no banco de dados."""
+    """Atualiza um usuário existente. Se uma nova senha for fornecida, ela também é atualizada."""
     conn = get_db_connection()
     if conn is None:
         return 0
 
     cursor = conn.cursor()
 
-    # Nota: Esta função não atualiza a senha.
-    # A alteração de senha geralmente é um processo separado e mais seguro.
-    sql = """
-        UPDATE Usuarios
-        SET nome = %s, email = %s, tipo = %s, departamento_id = %s
-        WHERE usuario_id = %s;
-    """
+    # Monta a query dinamicamente
+    fields = [
+        'nome = %s',
+        'email = %s',
+        'tipo = %s',
+        'departamento_id = %s'
+    ]
+    params = [
+        dados_usuario['nome'],
+        dados_usuario['email'],
+        dados_usuario['tipo'],
+        dados_usuario.get('departamento_id')
+    ]
+
+    # Se uma nova senha foi enviada e não está vazia
+    if 'senha' in dados_usuario and dados_usuario['senha']:
+        fields.append('senha = %s')
+        params.append(dados_usuario['senha']) # Lembre-se, não estamos usando hash
+
+    sql = f"UPDATE Usuarios SET {', '.join(fields)} WHERE usuario_id = %s;"
+    params.append(usuario_id)
 
     try:
-        cursor.execute(sql, (
-            dados_usuario['nome'],
-            dados_usuario['email'],
-            dados_usuario['tipo'],
-            dados_usuario.get('departamento_id'),
-            usuario_id
-        ))
+        cursor.execute(sql, tuple(params))
         updated_rows = cursor.rowcount
         conn.commit()
-        cursor.close()
-        conn.close()
         return updated_rows
     except Exception as e:
         conn.rollback()
-        cursor.close()
-        conn.close()
         print(f"Erro ao atualizar usuário: {e}")
         return 0
+    finally:
+        cursor.close()
+        conn.close()
 
 # --- FUNÇÃO 15: Deletar um usuário ---
 def delete_usuario(usuario_id):
@@ -542,3 +549,66 @@ def authenticate_usuario(email, senha):
 
     # Se o usuário não existe ou a senha está errada
     return None
+
+# --- FUNÇÕES DE DEPARTAMENTOS ---
+
+def get_all_departamentos():
+    """Busca todos os departamentos."""
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    cursor.execute("SELECT * FROM Departamentos ORDER BY nome ASC")
+    departamentos = [dict(row) for row in cursor.fetchall()]
+    cursor.close()
+    conn.close()
+    return departamentos
+
+def create_departamento(dados_depto):
+    """Cria um novo departamento."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("INSERT INTO Departamentos (nome) VALUES (%s) RETURNING departamento_id", (dados_depto['nome'],))
+        novo_id = cursor.fetchone()[0]
+        conn.commit()
+        return novo_id
+    except Exception as e:
+        conn.rollback()
+        print(f"Erro ao criar departamento: {e}")
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+def update_departamento(depto_id, dados_depto):
+    """Atualiza o nome de um departamento."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE Departamentos SET nome = %s WHERE departamento_id = %s", (dados_depto['nome'], depto_id))
+        updated_rows = cursor.rowcount
+        conn.commit()
+        return updated_rows
+    except Exception as e:
+        conn.rollback()
+        print(f"Erro ao atualizar departamento: {e}")
+        return 0
+    finally:
+        cursor.close()
+        conn.close()
+
+def delete_departamento(depto_id):
+    """Deleta um departamento."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM Departamentos WHERE departamento_id = %s", (depto_id,))
+        deleted_rows = cursor.rowcount
+        conn.commit()
+        return deleted_rows
+    except Exception as e:
+        conn.rollback()
+        print(f"Erro ao deletar departamento: {e}")
+        return 0
+    finally:
+        cursor.close()
+        conn.close()

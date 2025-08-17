@@ -33,7 +33,7 @@ function DashboardPage() {
       </Typography>
       <Grid container spacing={3} sx={{ mt: 2 }}>
         {menuOptions.map((option) => (
-          <Grid item xs={12} sm={6} md={4} key={option.title}>
+          <Grid xs={12} sm={6} md={4} key={option.title}>
             <Card>
               <CardActionArea component={RouterLink} to={option.link}>
                 <CardContent>

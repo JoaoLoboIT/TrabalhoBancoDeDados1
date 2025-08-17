@@ -4,23 +4,30 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import EspacosPage from './pages/EspacosPage';
-// ... importe outras páginas aqui
+import ReservasPage from './pages/ReservasPage';
+import DepartamentosPage from './pages/DepartamentosPage';
+import UsuariosPage from './pages/UsuariosPage';
 
 import ProtectedRoute from './components/ProtectedRoute';
-import MainLayout from './components/MainLayout'; 
+import MainLayout from './components/MainLayout';
 
 function App() {
   return (
     <Router>
       <Routes>
-        {/* A rota de login continua pública e fora do layout principal */}
+        {/* Rota pública de Login */}
         <Route path="/login" element={<LoginPage />} />
 
-        {/* Todas as rotas protegidas agora passam pelo MainLayout */}
+        {/* Agrupamento de rotas protegidas que usarão o Layout Principal */}
         <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/espacos" element={<EspacosPage />} />
-          {/* Adicione outras rotas protegidas aqui, dentro deste grupo */}
+
+          {/* --- ROTAS FALTANTES ADICIONADAS AQUI --- */}
+          <Route path="/departamentos" element={<DepartamentosPage />} />
+          <Route path="/reservas" element={<ReservasPage />} />
+          <Route path="/usuarios" element={<UsuariosPage />} />
+
         </Route>
       </Routes>
     </Router>

@@ -7,7 +7,8 @@ from flask import Blueprint, jsonify, request, current_app
 from .models import (
     get_all_espacos, get_espaco_by_id, create_espaco, update_espaco, delete_espaco,
     create_reserva, get_reserva_by_id, update_reserva_status, get_all_reservas, delete_reserva,
-    get_all_usuarios, get_usuario_by_id, create_usuario, update_usuario, delete_usuario, authenticate_usuario
+    get_all_usuarios, get_usuario_by_id, create_usuario, update_usuario, delete_usuario, authenticate_usuario,
+    get_all_departamentos, create_departamento, update_departamento, delete_departamento
 )
 
 api_bp = Blueprint('api_bp', __name__, url_prefix='/api')
@@ -280,3 +281,56 @@ def get_current_user_data(current_user):
         return jsonify({"erro": "Usuário do token não encontrado"}), 404
 
     return jsonify(usuario)
+
+# --- ROTAS DE DEPARTAMENTOS ---
+
+@api_bp.route('/departamentos', methods=['GET'])
+def listar_departamentos_route():
+    """Endpoint público para listar todos os departamentos."""
+    departamentos = get_all_departamentos()
+    return jsonify(departamentos)
+
+@api_bp.route('/departamentos', methods=['POST'])
+@token_required
+@role_required('gestor')
+def criar_departamento_route(_):
+    """Endpoint para um gestor criar um novo departamento."""
+    dados = request.get_json()
+    if not dados or 'nome' not in dados:
+        return jsonify({"erro": "O nome do departamento é obrigatório"}), 400
+
+    novo_id = create_departamento(dados)
+    if novo_id is None:
+        return jsonify({"erro": "Falha ao criar departamento, verifique se o nome já existe."}), 409
+
+    # Retorna o novo objeto criado
+    novo_depto = {'departamento_id': novo_id, 'nome': dados['nome']}
+    return jsonify(novo_depto), 201
+
+@api_bp.route('/departamentos/<int:depto_id>', methods=['PUT'])
+@token_required
+@role_required('gestor')
+def atualizar_departamento_route(_, depto_id):
+    """Endpoint para um gestor atualizar um departamento."""
+    dados = request.get_json()
+    if not dados or 'nome' not in dados:
+        return jsonify({"erro": "O nome do departamento é obrigatório"}), 400
+
+    updated_rows = update_departamento(depto_id, dados)
+    if updated_rows == 0:
+        return jsonify({"erro": "Departamento não encontrado"}), 404
+
+    depto_atualizado = {'departamento_id': depto_id, 'nome': dados['nome']}
+    return jsonify(depto_atualizado)
+
+@api_bp.route('/departamentos/<int:depto_id>', methods=['DELETE'])
+@token_required
+@role_required('gestor')
+def deletar_departamento_route(_, depto_id):
+    """Endpoint para um gestor deletar um departamento."""
+    # Cuidado: deletar um departamento pode falhar se ele estiver sendo usado por usuários.
+    # Por simplicidade, não adicionamos cascade, mas em um sistema real isso seria necessário.
+    deleted_rows = delete_departamento(depto_id)
+    if deleted_rows == 0:
+        return jsonify({"erro": "Departamento não encontrado"}), 404
+    return jsonify({"mensagem": "Departamento deletado com sucesso"})

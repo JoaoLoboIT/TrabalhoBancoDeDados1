@@ -82,18 +82,22 @@ def deletar_espaco_route(current_user, espaco_id):
 # --- ROTA 6: Criar uma nova reserva (POST) ---
 @api_bp.route('/reservas', methods=['POST'])
 @token_required
-def criar_reserva_route(current_user):
+def criar_reserva_route(current_user): # A função já recebe o usuário do token
     """Endpoint para solicitar uma nova reserva."""
     dados = request.get_json()
 
-    required_fields = ['espaco_id', 'solicitante_id', 'data_hora_inicio', 'data_hora_fim', 'num_participantes']
+    # Removemos 'solicitante_id' da lista de campos obrigatórios que vêm do formulário.
+    required_fields = ['espaco_id', 'data_hora_inicio', 'data_hora_fim', 'num_participantes']
     if not all(field in dados for field in required_fields):
         return jsonify({"erro": "Dados incompletos para criar a reserva"}), 400
+
+    # Adicionamos o ID do solicitante a partir do token, de forma segura.
+    dados['solicitante_id'] = int(current_user['sub'])
 
     resultado = create_reserva(dados)
 
     if "erro" in resultado:
-        status_code = 409 if "conflito" in resultado["erro"].lower() else 400
+        status_code = 409 if "conflito" in resultado["erro"].lower() or "excede" in resultado["erro"].lower() else 403
         return jsonify(resultado), status_code
 
     nova_reserva = get_reserva_by_id(resultado['id'])
@@ -106,21 +110,26 @@ def criar_reserva_route(current_user):
 def atualizar_status_reserva_route(current_user, reserva_id):
     """
     Endpoint para um gestor aprovar ou recusar uma reserva.
-    Espera um JSON com o novo 'status' e o 'aprovador_id'.
     """
     dados = request.get_json()
 
-    if not dados or 'status' not in dados or 'aprovador_id' not in dados:
-        return jsonify({"erro": "Dados incompletos: 'status' e 'aprovador_id' são obrigatórios"}), 400
+    # --- CORREÇÃO DE SEGURANÇA E LÓGICA ---
+    # O aprovador é OBRIGATORIAMENTE o gestor que está logado (vem do token).
+    aprovador_id = int(current_user['sub'])
+
+    # A validação agora só precisa verificar o 'status' no corpo da requisição.
+    if not dados or 'status' not in dados:
+        return jsonify({"erro": "O novo 'status' é obrigatório"}), 400
 
     novo_status = dados['status']
-    aprovador_id = dados['aprovador_id']
 
+    # Passamos o aprovador_id seguro para a função do modelo.
     updated_rows = update_reserva_status(reserva_id, novo_status, aprovador_id)
 
     if updated_rows == 0:
         return jsonify({"erro": "Reserva não encontrada ou status inválido"}), 404
 
+    # Busca a reserva atualizada para retornar na resposta
     reserva_atualizada = get_reserva_by_id(reserva_id)
     return jsonify(reserva_atualizada)
 

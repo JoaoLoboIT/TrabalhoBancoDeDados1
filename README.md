@@ -1,6 +1,6 @@
 # Sistema de Gerenciamento de Espaços 🏫
 
-![Status do Projeto](https://img.shields.io/badge/status-em%20desenvolvimento-green)
+![Status do Projeto](https://img.shields.io/badge/status-concluído-brightgreen)
 
 ## 📝 Descrição do Projeto
 

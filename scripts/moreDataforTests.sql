@@ -86,3 +86,63 @@ INSERT INTO Reservas (espaco_id, solicitante_id, data_hora_inicio, data_hora_fim
 ((SELECT espaco_id FROM Espacos WHERE nome = 'Sala de Reuniões B'),
  (SELECT usuario_id FROM Usuarios WHERE email = 'bruno.gomes@aluno.br'),
  '2025-09-15 14:00:00', '2025-09-15 18:00:00', 'Evento de comitê estudantil', 12, 'recusada', (SELECT usuario_id FROM Usuarios WHERE email = 'carlos.gestor@instituicao.br'));
+
+ -- ====================================================================
+-- SCRIPT PARA ADICIONAR 10 RESERVAS COM STATUS 'PENDENTE'
+-- ====================================================================
+
+-- As subconsultas (SELECT id FROM...) garantem que o script funcione
+-- independentemente dos IDs específicos no seu banco.
+
+INSERT INTO Reservas (espaco_id, solicitante_id, data_hora_inicio, data_hora_fim, finalidade, num_participantes, status) VALUES
+(
+    (SELECT espaco_id FROM Espacos WHERE nome = 'Auditório Setorial'),
+    (SELECT usuario_id FROM Usuarios WHERE email = 'heitor.campos@instituicao.br'),
+    '2025-08-25 09:00:00', '2025-08-25 11:00:00', 'Seminário de Redes Neurais', 80, 'pendente'
+),
+(
+    (SELECT espaco_id FROM Espacos WHERE nome = 'Laboratório de Física'),
+    (SELECT usuario_id FROM Usuarios WHERE email = 'laura.mendes@instituicao.br'),
+    '2025-08-26 14:00:00', '2025-08-26 17:00:00', 'Aula prática de Mecânica Quântica', 18, 'pendente'
+),
+(
+    (SELECT espaco_id FROM Espacos WHERE nome = 'Anfiteatro'),
+    (SELECT usuario_id FROM Usuarios WHERE email = 'gabriela.lima@aluno.br'),
+    '2025-08-27 19:00:00', '2025-08-27 22:00:00', 'Apresentação do Centro Acadêmico', 130, 'pendente'
+),
+(
+    (SELECT espaco_id FROM Espacos WHERE nome = 'Sala de Reuniões A'),
+    (SELECT usuario_id FROM Usuarios WHERE email = 'carolina.furtado@instituicao.br'),
+    '2025-08-28 10:00:00', '2025-08-28 11:30:00', 'Reunião de Orientação de TCC', 5, 'pendente'
+),
+(
+    (SELECT espaco_id FROM Espacos WHERE nome = 'Laboratório de Eletrônica'),
+    (SELECT usuario_id FROM Usuarios WHERE email = 'gustavo.pereira@instituicao.br'),
+    '2025-08-29 15:00:00', '2025-08-29 19:00:00', 'Maratona de Programação de Circuitos', 15, 'pendente'
+),
+(
+    (SELECT espaco_id FROM Espacos WHERE nome = 'Auditório Central'),
+    (SELECT usuario_id FROM Usuarios WHERE email = 'sofia.carvalho@aluno.br'),
+    '2025-09-01 18:00:00', '2025-09-01 22:00:00', 'Ensaio da Peça de Teatro', 45, 'pendente'
+),
+(
+    (SELECT espaco_id FROM Espacos WHERE nome = 'Sala de Aula 101'),
+    (SELECT usuario_id FROM Usuarios WHERE email = 'diego.costa@aluno.br'),
+    '2025-09-02 13:00:00', '2025-09-02 15:00:00', 'Workshop de Oratória', 40, 'pendente'
+),
+(
+    -- CORREÇÃO APLICADA AQUI
+    (SELECT espaco_id FROM Espacos WHERE nome = 'Sala de Redes'), 
+    (SELECT usuario_id FROM Usuarios WHERE email = 'roberto.dias@instituicao.br'),
+    '2025-09-03 08:00:00', '2025-09-03 12:00:00', 'Manutenção e Configuração de Servidores', 10, 'pendente'
+),
+(
+    (SELECT espaco_id FROM Espacos WHERE nome = 'Sala de Reuniões B'),
+    (SELECT usuario_id FROM Usuarios WHERE email = 'vanessa.rocha@instituicao.br'),
+    '2025-09-04 16:00:00', '2025-09-04 17:00:00', 'Banca de Qualificação', 8, 'pendente'
+),
+(
+    (SELECT espaco_id FROM Espacos WHERE nome = 'Anfiteatro'),
+    (SELECT usuario_id FROM Usuarios WHERE email = 'samuel.pinheiro@instituicao.br'),
+    '2025-09-05 14:00:00', '2025-09-05 18:00:00', 'Defesa de Tese de Doutorado', 70, 'pendente'
+);

@@ -8,7 +8,7 @@ from .models import (
     get_all_espacos, get_espaco_by_id, create_espaco, update_espaco, delete_espaco,
     create_reserva, get_reserva_by_id, update_reserva_status, get_all_reservas, delete_reserva,
     get_all_usuarios, get_usuario_by_id, create_usuario, update_usuario, delete_usuario, authenticate_usuario,
-    get_all_departamentos, create_departamento, update_departamento, delete_departamento
+    get_all_departamentos, create_departamento, update_departamento, delete_departamento, get_available_espacos
 )
 
 api_bp = Blueprint('api_bp', __name__, url_prefix='/api')
@@ -272,6 +272,17 @@ def login_route():
     except Exception as e:
         print(f"Erro ao gerar token: {e}")
         return jsonify({"erro": "Falha ao processar o login"}), 500
+
+# --- ROTA 16: BUSCA POR DISPONIBILIDADE ---    
+@api_bp.route('/espacos/disponiveis', methods=['GET'])
+def buscar_espacos_disponiveis_route():
+    """
+    Endpoint público para buscar espaços disponíveis em um determinado período.
+    Ex: /api/espacos/disponiveis?inicio=2025-09-20T10:00:00&fim=2025-09-20T12:00:00
+    """
+    filtros = request.args.to_dict()
+    espacos = get_available_espacos(filtros)
+    return jsonify(espacos)
 
 # --- ROTA Adicional: Buscar dados do usuário logado ---
 @api_bp.route('/me', methods=['GET'])

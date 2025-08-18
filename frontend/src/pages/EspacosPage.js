@@ -3,7 +3,7 @@ import { AuthContext } from '../context/AuthContext';
 import {
   Typography, Container, Card, CardContent, CircularProgress, Alert, Button,
   Dialog, DialogActions, DialogContent, DialogTitle, TextField, CardActions,
-  FormControl, InputLabel, Select, MenuItem
+  FormControl, InputLabel, Select, MenuItem, Paper, Grid, Box
 } from '@mui/material';
 
 function EspacosPage() {
@@ -14,18 +14,19 @@ function EspacosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [open, setOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    nome: '',
-    tipo: '',
-    capacidade: ''
+  const [availabilityFilters, setAvailabilityFilters] = useState({
+    inicio: '',
+    fim: '',
+    tipo: ''
   });
 
-  // --- MUDANÇA 1: Novo estado para saber se estamos editando ---
+  const [open, setOpen] = useState(false);
+  const [formData, setFormData] = useState({ nome: '', tipo: '', capacidade: '' });
   const [editingEspaco, setEditingEspaco] = useState(null);
 
-  const fetchEspacos = () => {
+  const fetchAllEspacos = () => {
     setLoading(true);
+    setError(null);
     fetch('http://localhost:5000/api/espacos')
       .then(response => {
         if (!response.ok) throw new Error('Falha ao buscar os dados da API');
@@ -33,32 +34,71 @@ function EspacosPage() {
       })
       .then(data => {
         setEspacos(data);
-        setLoading(false);
       })
       .catch(error => {
         setError(error.message);
+      })
+      .finally(() => {
         setLoading(false);
       });
   };
 
   useEffect(() => {
-    fetchEspacos();
+    fetchAllEspacos();
   }, []);
 
-  // --- MUDANÇA 2: Funções para abrir o modal ---
+  const handleAvailabilityFilterChange = (e) => {
+    const { name, value } = e.target;
+    setAvailabilityFilters(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSearchAvailable = () => {
+    if (!availabilityFilters.inicio || !availabilityFilters.fim) {
+      setError("Por favor, preencha as datas de início e fim para a busca.");
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    
+    const params = new URLSearchParams({
+      inicio: availabilityFilters.inicio,
+      fim: availabilityFilters.fim,
+    });
+    if (availabilityFilters.tipo) {
+      params.append('tipo', availabilityFilters.tipo);
+    }
+
+    fetch(`http://localhost:5000/api/espacos/disponiveis?${params.toString()}`)
+      .then(res => {
+        if (!res.ok) throw new Error('Falha ao buscar espaços disponíveis.');
+        return res.json();
+        })
+      .then(data => {
+        setEspacos(data);
+      })
+      .catch(err => {
+        setError(err.message);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
+
+  const handleClearFilters = () => {
+    setAvailabilityFilters({ inicio: '', fim: '', tipo: '' });
+    fetchAllEspacos();
+  };
+
   const handleCreateClick = () => {
-    setEditingEspaco(null); // Garante que não estamos em modo de edição
-    setFormData({ nome: '', tipo: '', capacidade: '' }); // Limpa o formulário
+    setEditingEspaco(null);
+    setFormData({ nome: '', tipo: '', capacidade: '' });
     setOpen(true);
   };
 
   const handleEditClick = (espaco) => {
-    setEditingEspaco(espaco); // Guarda o espaço que estamos editando
-    setFormData({ // Preenche o formulário com os dados do espaço
-      nome: espaco.nome,
-      tipo: espaco.tipo,
-      capacidade: espaco.capacidade || ''
-    });
+    setEditingEspaco(espaco);
+    setFormData({ nome: espaco.nome, tipo: espaco.tipo, capacidade: espaco.capacidade || '' });
     setOpen(true);
   };
 
@@ -68,8 +108,7 @@ function EspacosPage() {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
   };
-
-  // --- MUDANÇA 3: A função de Salvar agora é inteligente ---
+  
   const handleSubmit = () => {
     const isEditing = editingEspaco !== null;
     const method = isEditing ? 'PUT' : 'POST';
@@ -80,65 +119,61 @@ function EspacosPage() {
     const body = {
       ...formData,
       capacidade: parseInt(formData.capacidade, 10) || null,
-      // Se estiver editando, usa o gestor que já existia. Se criando, usa o logado.
       gestor_responsavel_id: isEditing ? editingEspaco.gestor_responsavel_id : user.usuario_id
     };
 
     fetch(url, {
       method: method,
-      headers: {
-        'Content-Type': 'application/json',
-        'x-access-token': token
-      },
+      headers: { 'Content-Type': 'application/json', 'x-access-token': token },
       body: JSON.stringify(body)
     })
-    .then(response => {
-      if (!response.ok) throw new Error(`Falha ao ${isEditing ? 'atualizar' : 'criar'} o espaço.`);
-      return response.json();
+    .then(res => {
+      if (!res.ok) throw new Error(`Falha ao ${isEditing ? 'atualizar' : 'criar'} o espaço.`);
+      return res.json();
     })
     .then(() => {
       handleClose();
-      fetchEspacos();
+      fetchAllEspacos();
     })
     .catch(err => setError(err.message));
   };
 
   const handleDelete = (espacoId) => {
-    // ... (função de deletar continua igual)
     if (window.confirm('Tem certeza que deseja deletar este espaço?')) {
       fetch(`http://localhost:5000/api/espacos/${espacoId}`, {
         method: 'DELETE',
         headers: { 'x-access-token': token }
       })
-      .then(response => {
-        if (!response.ok) throw new Error('Falha ao deletar o espaço.');
-        return response.json();
+      .then(res => {
+        if (!res.ok) throw new Error('Falha ao deletar o espaço.');
+        return res.json();
       })
-      .then(() => fetchEspacos())
+      .then(() => fetchAllEspacos())
       .catch(err => setError(err.message));
     }
   };
 
   let content;
-  if (loading) content = <CircularProgress />;
-  else if (error) content = <Alert severity="error">{error}</Alert>;
-  else {
-    content = espacos.map(espaco => (
-      <Card key={espaco.espaco_id} variant="outlined" style={{ marginBottom: '10px' }}>
-        <CardContent>
-          <Typography variant="h6">{espaco.nome}</Typography>
-          <Typography color="textSecondary">Tipo: {espaco.tipo}</Typography>
-          <Typography color="textSecondary">Capacidade: {espaco.capacidade || 'Não informada'}</Typography>
-        </CardContent>
-        {isGestor && (
-          <CardActions>
-            {/* --- MUDANÇA 4: O botão de editar agora chama a função correta --- */}
-            <Button size="small" color="primary" onClick={() => handleEditClick(espaco)}>Editar</Button>
-            <Button size="small" color="secondary" onClick={() => handleDelete(espaco.espaco_id)}>Deletar</Button>
-          </CardActions>
-        )}
-      </Card>
-    ));
+  if (loading) {
+    content = <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}><CircularProgress /></Box>;
+  } else {
+    content = espacos.length > 0
+      ? espacos.map(espaco => (
+          <Card key={espaco.espaco_id} variant="outlined" style={{ marginBottom: '10px' }}>
+            <CardContent>
+              <Typography variant="h6">{espaco.nome}</Typography>
+              <Typography color="textSecondary">Tipo: {espaco.tipo}</Typography>
+              <Typography color="textSecondary">Capacidade: {espaco.capacidade || 'Não informada'}</Typography>
+            </CardContent>
+            {isGestor && (
+              <CardActions>
+                <Button size="small" color="primary" onClick={() => handleEditClick(espaco)}>Editar</Button>
+                <Button size="small" color="secondary" onClick={() => handleDelete(espaco.espaco_id)}>Deletar</Button>
+              </CardActions>
+            )}
+          </Card>
+        ))
+      : <Alert severity="info" sx={{ mt: 2 }}>Nenhum espaço encontrado para os critérios selecionados.</Alert>;
   }
 
   return (
@@ -146,6 +181,27 @@ function EspacosPage() {
       <Typography variant="h4" component="h1" gutterBottom>
         Gerenciamento de Espaços
       </Typography>
+      
+      <Paper sx={{ p: 2, mb: 3, backgroundColor: '#f9f9f9' }}>
+        <Typography variant="h6" gutterBottom>Buscar Espaços Disponíveis</Typography>
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} md={4}>
+            <TextField name="inicio" label="Início" type="datetime-local" fullWidth value={availabilityFilters.inicio} onChange={handleAvailabilityFilterChange} InputLabelProps={{ shrink: true }} size="small" />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField name="fim" label="Fim" type="datetime-local" fullWidth value={availabilityFilters.fim} onChange={handleAvailabilityFilterChange} InputLabelProps={{ shrink: true }} size="small"/>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField name="tipo" label="Tipo de Espaço (opcional)" fullWidth value={availabilityFilters.tipo} onChange={handleAvailabilityFilterChange} size="small" />
+          </Grid>
+          <Grid item xs={12}>
+            <Box sx={{ display: 'flex', gap: 2, mt:1 }}>
+              <Button variant="contained" onClick={handleSearchAvailable}>Buscar</Button>
+              <Button variant="outlined" onClick={handleClearFilters}>Limpar Filtros</Button>
+            </Box>
+          </Grid>
+        </Grid>
+      </Paper>
 
       {isGestor && (
         <Button variant="contained" color="primary" onClick={handleCreateClick} style={{ marginBottom: '20px' }}>
@@ -153,10 +209,10 @@ function EspacosPage() {
         </Button>
       )}
 
+      {error && <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>}
       {content}
 
       <Dialog open={open} onClose={handleClose}>
-        {/* --- MUDANÇA 5: Título do modal dinâmico --- */}
         <DialogTitle>{editingEspaco ? 'Editar Espaço' : 'Adicionar Novo Espaço'}</DialogTitle>
         <DialogContent>
           <TextField autoFocus margin="dense" name="nome" label="Nome do Espaço" type="text" fullWidth variant="standard" value={formData.nome} onChange={handleInputChange} />

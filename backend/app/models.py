@@ -295,7 +295,6 @@ def get_all_reservas(filtros):
 
     cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
-    # Base da query
     sql = """
         SELECT r.*, e.nome as espaco_nome, u.nome as solicitante_nome
         FROM Reservas r
@@ -303,7 +302,6 @@ def get_all_reservas(filtros):
         JOIN Usuarios u ON r.solicitante_id = u.usuario_id
     """
 
-    # Montagem dinâmica da cláusula WHERE e dos parâmetros
     where_clauses = []
     params = []
 
@@ -315,9 +313,13 @@ def get_all_reservas(filtros):
         where_clauses.append("r.solicitante_id = %s")
         params.append(filtros['solicitante_id'])
 
+    # --- MUDANÇA AQUI ---
     if filtros.get('status'):
-        where_clauses.append("r.status = %s")
-        params.append(filtros['status'])
+        # Divide a string 'pendente,confirmada' em uma tupla ('pendente', 'confirmada')
+        statuses = tuple(filtros['status'].split(','))
+        # Usa o operador 'IN' do SQL para buscar em uma lista de valores
+        where_clauses.append("r.status IN %s")
+        params.append(statuses)
 
     if where_clauses:
         sql += " WHERE " + " AND ".join(where_clauses)
@@ -549,6 +551,55 @@ def authenticate_usuario(email, senha):
 
     # Se o usuário não existe ou a senha está errada
     return None
+
+# --- FUNÇÃO 17: Buscar espaços disponíveis por data/hora ---
+def get_available_espacos(filtros):
+    """
+    Busca espaços que NÃO TÊM reservas conflitantes no período especificado.
+    """
+    conn = get_db_connection()
+    if conn is None:
+        return []
+
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+    # Parâmetros obrigatórios para a busca
+    data_inicio = filtros.get('inicio')
+    data_fim = filtros.get('fim')
+    if not data_inicio or not data_fim:
+        # Se as datas não forem fornecidas, não podemos buscar
+        return []
+
+    # Parâmetro opcional para tipo de espaço
+    tipo_espaco = filtros.get('tipo')
+
+    # Esta query SQL seleciona todos os espaços
+    # onde NÃO EXISTE uma reserva conflitante (pendente ou confirmada)
+    # no período de tempo informado.
+    sql = """
+        SELECT * FROM Espacos e
+        WHERE NOT EXISTS (
+            SELECT 1 FROM Reservas r
+            WHERE r.espaco_id = e.espaco_id
+            AND r.status IN ('confirmada', 'pendente')
+            AND (r.data_hora_inicio < %s AND r.data_hora_fim > %s)
+        )
+    """
+    params = [data_fim, data_inicio]
+
+    # Adiciona o filtro de tipo se ele for fornecido
+    if tipo_espaco:
+        sql += " AND e.tipo = %s"
+        params.append(tipo_espaco)
+
+    sql += " ORDER BY e.nome;"
+
+    cursor.execute(sql, tuple(params))
+    espacos_disponiveis = [dict(row) for row in cursor.fetchall()]
+
+    cursor.close()
+    conn.close()
+    return espacos_disponiveis
 
 # --- FUNÇÕES DE DEPARTAMENTOS ---
 

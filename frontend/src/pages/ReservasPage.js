@@ -20,11 +20,7 @@ function ReservasPage() {
   const [allUsuarios, setAllUsuarios] = useState([]);
   const [allEspacos, setAllEspacos] = useState([]);
 
-  const [filtros, setFiltros] = useState({
-    solicitante_id: '',
-    espaco_id: '',
-    status: ''
-  });
+  const [filtros, setFiltros] = useState({ solicitante_id: '', espaco_id: '', status: '' });
   
   const [openCreate, setOpenCreate] = useState(false);
   const [formData, setFormData] = useState({
@@ -35,8 +31,11 @@ function ReservasPage() {
     data_hora_fim: '',
   });
 
+  const [horariosOcupados, setHorariosOcupados] = useState([]);
+
   const fetchReservas = () => {
     setLoading(true);
+    setError(null);
     const params = new URLSearchParams();
     if (filtros.solicitante_id) params.append('solicitante_id', filtros.solicitante_id);
     if (filtros.espaco_id) params.append('espaco_id', filtros.espaco_id);
@@ -73,7 +72,7 @@ function ReservasPage() {
         setAllUsuarios(await usuariosRes.json());
         setAllEspacos(await espacosRes.json());
       } catch (err) {
-        setError('Falha ao carregar dados de apoio (usuários/espaços).');
+        setError('Falha ao carregar dados de apoio.');
       }
     };
 
@@ -88,6 +87,7 @@ function ReservasPage() {
   
   const handleOpenCreateModal = () => {
     setFormData({ espaco_id: null, finalidade: '', num_participantes: '', data_hora_inicio: '', data_hora_fim: '' });
+    setHorariosOcupados([]);
     setOpenCreate(true);
   };
   const handleCloseCreateModal = () => setOpenCreate(false);
@@ -99,19 +99,25 @@ function ReservasPage() {
 
   const handleAutocompleteChange = (event, value) => {
     setFormData(prev => ({ ...prev, espaco_id: value ? value.espaco_id : null }));
+    if (value) {
+      // Combina status 'pendente' e 'confirmada' na busca
+      const statusFilter = 'pendente,confirmada';
+      fetch(`http://localhost:5000/api/reservas?espaco_id=${value.espaco_id}&status=${statusFilter}`, {
+        headers: { 'x-access-token': token }
+      })
+      .then(res => res.json())
+      .then(data => setHorariosOcupados(data))
+      .catch(() => setHorariosOcupados([]));
+    } else {
+      setHorariosOcupados([]);
+    }
   };
   
   const handleCreateSubmit = () => {
     fetch('http://localhost:5000/api/reservas', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-access-token': token
-      },
-      body: JSON.stringify({
-        ...formData,
-        num_participantes: parseInt(formData.num_participantes)
-      })
+      headers: { 'Content-Type': 'application/json', 'x-access-token': token },
+      body: JSON.stringify({ ...formData, num_participantes: parseInt(formData.num_participantes) })
     })
     .then(res => res.json().then(data => {
         if(!res.ok) throw new Error(data.erro || 'Falha ao criar reserva.');
@@ -130,10 +136,7 @@ function ReservasPage() {
   const handleUpdateStatus = (reservaId, newStatus) => {
     fetch(`http://localhost:5000/api/reservas/${reservaId}/status`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-access-token': token,
-      },
+      headers: { 'Content-Type': 'application/json', 'x-access-token': token },
       body: JSON.stringify({ status: newStatus })
     })
     .then(res => {
@@ -185,15 +188,9 @@ function ReservasPage() {
         <Paper sx={{ p: 2, mb: 3 }}>
           <Typography variant="h6" gutterBottom>Filtros</Typography>
           <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} sm={5}>
-              <Autocomplete options={allUsuarios} getOptionLabel={(option) => option.nome || ""} onChange={(event, newValue) => setFiltros((prev) => ({ ...prev, solicitante_id: newValue ? newValue.usuario_id : "" }))} renderInput={(params) => <TextField {...params} label="Solicitante" />} />
-            </Grid>
-            <Grid item xs={12} sm={5}>
-              <Autocomplete options={allEspacos} getOptionLabel={(option) => option.nome || ""} onChange={(event, newValue) => setFiltros((prev) => ({ ...prev, espaco_id: newValue ? newValue.espaco_id : "" }))} renderInput={(params) => <TextField {...params} label="Espaço" />} />
-            </Grid>
-            <Grid item xs={12} sm={2}>
-              <TextField fullWidth label="Status" name="status" value={filtros.status} onChange={(e) => setFiltros((prev) => ({ ...prev, status: e.target.value }))} />
-            </Grid>
+            <Grid item xs={12} sm={5}><Autocomplete options={allUsuarios} getOptionLabel={(option) => option.nome || ""} onChange={(event, newValue) => setFiltros((prev) => ({ ...prev, solicitante_id: newValue ? newValue.usuario_id : "" }))} renderInput={(params) => <TextField {...params} label="Solicitante" />} /></Grid>
+            <Grid item xs={12} sm={5}><Autocomplete options={allEspacos} getOptionLabel={(option) => option.nome || ""} onChange={(event, newValue) => setFiltros((prev) => ({ ...prev, espaco_id: newValue ? newValue.espaco_id : "" }))} renderInput={(params) => <TextField {...params} label="Espaço" />} /></Grid>
+            <Grid item xs={12} sm={2}><TextField fullWidth label="Status" name="status" value={filtros.status} onChange={(e) => setFiltros((prev) => ({ ...prev, status: e.target.value }))} /></Grid>
           </Grid>
         </Paper>
       )}
@@ -209,18 +206,12 @@ function ReservasPage() {
                 <Box sx={{ display: 'flex', gap: 1 }}>
                   {isGestor && reserva.status === 'pendente' && (
                     <>
-                      <IconButton edge="end" aria-label="aprovar" onClick={() => handleUpdateStatus(reserva.reserva_id, 'confirmada')} title="Aprovar">
-                        <CheckCircleIcon color="success" />
-                      </IconButton>
-                      <IconButton edge="end" aria-label="recusar" onClick={() => handleUpdateStatus(reserva.reserva_id, 'recusada')} title="Recusar">
-                        <CancelIcon color="error" />
-                      </IconButton>
+                      <IconButton edge="end" aria-label="aprovar" onClick={() => handleUpdateStatus(reserva.reserva_id, 'confirmada')} title="Aprovar"><CheckCircleIcon color="success" /></IconButton>
+                      <IconButton edge="end" aria-label="recusar" onClick={() => handleUpdateStatus(reserva.reserva_id, 'recusada')} title="Recusar"><CancelIcon color="error" /></IconButton>
                     </>
                   )}
                   {user.usuario_id === reserva.solicitante_id && (reserva.status === 'pendente' || reserva.status === 'confirmada') && new Date(reserva.data_hora_inicio) > new Date() && (
-                    <IconButton edge="end" aria-label="cancelar" onClick={() => handleCancel(reserva.reserva_id)} title="Cancelar Reserva">
-                      <DeleteForeverIcon />
-                    </IconButton>
+                    <IconButton edge="end" aria-label="cancelar" onClick={() => handleCancel(reserva.reserva_id)} title="Cancelar Reserva"><DeleteForeverIcon /></IconButton>
                   )}
                 </Box>
               }
@@ -241,14 +232,31 @@ function ReservasPage() {
         </List>
       )}
 
-      <Dialog open={openCreate} onClose={handleCloseCreateModal}>
+      <Dialog open={openCreate} onClose={handleCloseCreateModal} fullWidth maxWidth="sm">
         <DialogTitle>Solicitar Nova Reserva</DialogTitle>
         <DialogContent>
-          <Autocomplete options={allEspacos} getOptionLabel={(option) => option.nome || ''} onChange={handleAutocompleteChange} renderInput={(params) => <TextField {...params} label="Espaço" margin="dense" fullWidth variant="standard" />} />
-          <TextField name="finalidade" label="Finalidade" fullWidth margin="dense" variant="standard" value={formData.finalidade} onChange={handleFormChange} />
-          <TextField name="num_participantes" label="Nº de Participantes" type="number" fullWidth margin="dense" variant="standard" value={formData.num_participantes} onChange={handleFormChange} />
-          <TextField name="data_hora_inicio" label="Início da Reserva" type="datetime-local" fullWidth margin="dense" variant="standard" value={formData.data_hora_inicio} onChange={handleFormChange} InputLabelProps={{ shrink: true }} />
-          <TextField name="data_hora_fim" label="Fim da Reserva" type="datetime-local" fullWidth margin="dense" variant="standard" value={formData.data_hora_fim} onChange={handleFormChange} InputLabelProps={{ shrink: true }} />
+          <Autocomplete options={allEspacos} getOptionLabel={(option) => option.nome || ''} onChange={handleAutocompleteChange} renderInput={(params) => <TextField {...params} label="Espaço" margin="normal" fullWidth variant="outlined" />} />
+          
+          {horariosOcupados.length > 0 && (
+            <Paper variant="outlined" sx={{ p: 2, mt: 2, maxHeight: 150, overflow: 'auto' }}>
+                <Typography variant="subtitle2" gutterBottom>Horários já agendados para este espaço:</Typography>
+                <List dense>
+                    {horariosOcupados.map(res => (
+                        <ListItem key={res.reserva_id}>
+                            <ListItemText 
+                                primary={`${new Date(res.data_hora_inicio).toLocaleDateString('pt-BR')} - de ${new Date(res.data_hora_inicio).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})} até ${new Date(res.data_hora_fim).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}`}
+                                secondary={`Status: ${res.status}`}
+                            />
+                        </ListItem>
+                    ))}
+                </List>
+            </Paper>
+          )}
+
+          <TextField name="finalidade" label="Finalidade" fullWidth margin="normal" variant="outlined" value={formData.finalidade} onChange={handleFormChange} />
+          <TextField name="num_participantes" label="Nº de Participantes" type="number" fullWidth margin="normal" variant="outlined" value={formData.num_participantes} onChange={handleFormChange} />
+          <TextField name="data_hora_inicio" label="Início da Reserva" type="datetime-local" fullWidth margin="normal" variant="outlined" value={formData.data_hora_inicio} onChange={handleFormChange} InputLabelProps={{ shrink: true }} />
+          <TextField name="data_hora_fim" label="Fim da Reserva" type="datetime-local" fullWidth margin="normal" variant="outlined" value={formData.data_hora_fim} onChange={handleFormChange} InputLabelProps={{ shrink: true }} />
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseCreateModal}>Cancelar</Button>

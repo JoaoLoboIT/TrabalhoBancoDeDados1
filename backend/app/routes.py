@@ -151,17 +151,17 @@ def listar_reservas_route(current_user):
 def deletar_reserva_route(current_user, reserva_id):
     """
     Endpoint para um solicitante cancelar sua própria reserva.
-    A identidade do solicitante viria de um sistema de login,
-    mas por enquanto vamos simular enviando no corpo da requisição.
+    A identidade do solicitante vem do token.
     """
-    dados = request.get_json()
-    if not dados or 'solicitante_id' not in dados:
-        return jsonify({"erro": "O 'solicitante_id' é obrigatório para cancelar"}), 400
+    # --- CORREÇÃO DE SEGURANÇA ---
+    # Pegamos o ID do usuário logado diretamente do token.
+    solicitante_id = int(current_user['sub'])
 
-    solicitante_id = dados['solicitante_id']
+    # Não precisamos mais ler o corpo da requisição.
     resultado = delete_reserva(reserva_id, solicitante_id)
 
     if "erro" in resultado:
+        # Retorna 403 Forbidden para erros de permissão ou prazo excedido
         status_code = 403 if "permitida" in resultado["erro"] or "excedido" in resultado["erro"] else 404
         return jsonify(resultado), status_code
 

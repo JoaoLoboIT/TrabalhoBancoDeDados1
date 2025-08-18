@@ -133,7 +133,6 @@ function ReservasPage() {
       espaco_id: value ? value.espaco_id : null,
     }));
     if (value) {
-      // Combina status 'pendente' e 'confirmada' na busca
       const statusFilter = "pendente,confirmada";
       fetch(
         `http://localhost:5000/api/reservas?espaco_id=${value.espaco_id}&status=${statusFilter}`,
@@ -191,13 +190,16 @@ function ReservasPage() {
     if (window.confirm("Tem certeza que deseja cancelar esta reserva?")) {
       fetch(`http://localhost:5000/api/reservas/${reservaId}`, {
         method: "DELETE",
-        headers: { "x-access-token": token },
+        headers: {
+          // Apenas o token é necessário para o back-end saber quem está cancelando
+          "x-access-token": token,
+        },
       })
         .then((res) =>
           res.json().then((data) => {
             if (!res.ok)
               throw new Error(data.erro || "Falha ao cancelar reserva.");
-            fetchReservas();
+            fetchReservas(); // Atualiza a lista após o cancelamento
           })
         )
         .catch((err) => {
@@ -295,9 +297,13 @@ function ReservasPage() {
         </Paper>
       )}
 
-      {loading && <CircularProgress />}
+      {loading && (
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
+          <CircularProgress />
+        </Box>
+      )}
       {error && (
-        <Alert severity="error" onClose={() => setError(null)}>
+        <Alert severity="error" onClose={() => setError(null)} sx={{ mt: 2 }}>
           {error}
         </Alert>
       )}
@@ -310,15 +316,11 @@ function ReservasPage() {
                 key={reserva.reserva_id}
                 divider
                 secondaryAction={
-                  // --- MUDANÇA PRINCIPAL AQUI ---
-                  // Agora o Status (Chip) e os botões vivem juntos neste Box,
-                  // que controla o alinhamento e espaçamento entre eles.
                   <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                     <Chip
                       label={reserva.status}
                       color={getStatusChipColor(reserva.status)}
                     />
-
                     {isGestor && reserva.status === "pendente" && (
                       <>
                         <IconButton
@@ -343,7 +345,6 @@ function ReservasPage() {
                         </IconButton>
                       </>
                     )}
-
                     {user.usuario_id === reserva.solicitante_id &&
                       (reserva.status === "pendente" ||
                         reserva.status === "confirmada") &&
@@ -360,7 +361,6 @@ function ReservasPage() {
                   </Box>
                 }
               >
-                {/* O ListItemText agora é o único filho direto aqui */}
                 <ListItemText
                   primary={`${reserva.espaco_nome} - ${
                     reserva.finalidade || "Sem finalidade"
@@ -400,7 +400,7 @@ function ReservasPage() {
               </ListItem>
             ))
           ) : (
-            <Typography>Nenhuma reserva encontrada.</Typography>
+            <Typography sx={{ mt: 2 }}>Nenhuma reserva encontrada.</Typography>
           )}
         </List>
       )}

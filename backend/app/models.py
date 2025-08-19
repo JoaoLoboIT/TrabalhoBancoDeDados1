@@ -2,7 +2,7 @@
 
 import psycopg2.extras
 from .db import get_db_connection
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # --- FUNÇÃO 1: Listar todos os espaços ---
 def get_all_espacos():
@@ -190,8 +190,9 @@ def create_reserva(dados_reserva):
             return {"erro": f"Número de participantes ({dados_reserva['num_participantes']}) excede a capacidade do espaço ({espaco['capacidade']})."}
 
         # --- VALIDAÇÃO 3: Laboratórios apenas para professores ---
-        if espaco['tipo'] == 'laboratorio' and solicitante['tipo'] != 'professor':
-            return {"erro": "Apenas professores podem reservar laboratórios."}
+        if espaco['tipo'] == 'laboratorio' and solicitante['tipo'] not in ['professor', 'gestor']:
+            return {"erro": "Apenas professores e gestores podem reservar laboratórios."}
+
 
         # --- MUDANÇA AQUI: VALIDAÇÃO 4: Limite de reservas ativas para alunos ---
         if solicitante['tipo'] == 'aluno':
@@ -334,8 +335,12 @@ def get_all_reservas(filtros):
     return [dict(row) for row in reservas]
 
 # --- FUNÇÃO 10: Deletar/Cancelar uma reserva ---
-def delete_reserva(reserva_id, solicitante_id):
-    """Deleta uma reserva, validando a regra de antecedência de 12h."""
+def delete_reserva(reserva_id, current_user):
+    """
+    Deleta uma reserva.
+    - Gestores podem cancelar qualquer reserva a qualquer momento.
+    - Outros usuários podem cancelar se atenderem à regra de 12h.
+    """
     conn = get_db_connection()
     if conn is None:
         return {"erro": "Falha na conexão com o banco de dados"}
@@ -343,22 +348,25 @@ def delete_reserva(reserva_id, solicitante_id):
     cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
     try:
-        # Primeiro, busca a reserva para validar as regras
         cursor.execute("SELECT * FROM Reservas WHERE reserva_id = %s", (reserva_id,))
         reserva = cursor.fetchone()
 
         if not reserva:
             return {"erro": "Reserva não encontrada."}
 
-        # Validação: Apenas o próprio solicitante pode cancelar
-        if reserva['solicitante_id'] != solicitante_id:
-            return {"erro": "Ação não permitida. Você não é o solicitante desta reserva."}
+        is_owner = reserva['solicitante_id'] == int(current_user['sub'])
+        is_gestor = current_user['tipo'] == 'gestor'
 
-        # Validação: Regra de negócio das 12 horas de antecedência
-        if datetime.now() > (reserva['data_hora_inicio'] - timedelta(hours=12)):
-            return {"erro": "Cancelamento não permitido. O prazo de 12 horas de antecedência foi excedido."}
+        if not is_owner and not is_gestor:
+            return {"erro": "Ação não permitida. Você não tem permissão para cancelar esta reserva."}
 
-        # Se todas as validações passaram, deleta a reserva
+        # Se for o dono, mas não for gestor, precisa checar a regra das 12h
+        if is_owner and not is_gestor:
+            # --- CORREÇÃO AQUI: Usamos a hora atual com fuso horário UTC ---
+            agora_utc = datetime.now(timezone.utc)
+            if agora_utc > (reserva['data_hora_inicio'] - timedelta(hours=12)):
+                return {"erro": "Cancelamento não permitido. O prazo de 12 horas de antecedência foi excedido."}
+
         cursor.execute("DELETE FROM Reservas WHERE reserva_id = %s", (reserva_id,))
         deleted_rows = cursor.rowcount
         conn.commit()

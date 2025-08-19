@@ -321,6 +321,7 @@ function ReservasPage() {
                       label={reserva.status}
                       color={getStatusChipColor(reserva.status)}
                     />
+
                     {isGestor && reserva.status === "pendente" && (
                       <>
                         <IconButton
@@ -345,7 +346,10 @@ function ReservasPage() {
                         </IconButton>
                       </>
                     )}
-                    {user.usuario_id === reserva.solicitante_id &&
+
+                    {/* --- MUDANÇA PRINCIPAL AQUI --- */}
+                    {/* O botão de cancelar agora aparece se (o usuário for gestor OU for o dono da reserva) E a reserva estiver ativa */}
+                    {(isGestor || user.usuario_id === reserva.solicitante_id) &&
                       (reserva.status === "pendente" ||
                         reserva.status === "confirmada") &&
                       new Date(reserva.data_hora_inicio) > new Date() && (
